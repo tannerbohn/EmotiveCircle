@@ -564,14 +564,3 @@ class EmotiveCircle(Frame):
 		#print("here")
 		self.root.destroy()
 
-	
-
-
-if __name__ == "__main__":
-
-	E = EmotiveCircle(directory="/home/tanner/Dropbox/sandbox/EmotiveCircle/")
-
-	#try:
-	E.run()
-	#except:
-	#	print("done")
