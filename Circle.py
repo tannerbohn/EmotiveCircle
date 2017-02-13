@@ -18,9 +18,9 @@ class Circle:
 
 		self.shadow_colour = blend([0,0,0], self.parent.bg_colour, 0.80)
 		self.shadow_height = 25 # height of the shadow in pixels
-		self.shadow_pix_from_bottom = 15 # pixels away from bottom of screen
+		self.shadow_pix_from_bottom = 50 #15 # pixels away from bottom of screen
 
-		self.minPixFromBottom = 50
+		self.minPixFromBottom = self.shadow_pix_from_bottom + self.shadow_height #50
 
 		self.width_mult = 1.0
 		self.radius_mult = 1.0
@@ -88,10 +88,10 @@ class Circle:
 
 	def getPoints(self, smooth=False):
 
-		center = self.parent.getCenter()
+		center = self.parent.getCenter() # given in physics form
 
 		cx = center[0]*self.parent.window_width
-		cy = center[1]*self.parent.window_height
+		cy = (1.-center[1])*self.parent.window_height
 
 		self.center_pix = (cx, cy)
 		

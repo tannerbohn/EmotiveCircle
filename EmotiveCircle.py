@@ -36,6 +36,7 @@ class EmotiveCircle(Frame):
 
 
 		self.root = Tk()
+		self.root.config(cursor="dot")
 
 		Frame.__init__(self, None, [])
 
@@ -43,11 +44,26 @@ class EmotiveCircle(Frame):
 		self.window_width = 800
 		self.window_height = 600
 
-		self.bg_colour = [255./255, 50./255, 10./255.]
-		self.label_colour = blend(self.bg_colour, [1, 1, 1], 0.75)
+		#self.bg_colour = [255./255, 76./255, 30./255.]
+		#self.fg_colour = [1, 1, 1]
+		
+		#self.bg_colour = [v/255. for v in (246,239,201)]
+		#self.c1_colour = [v/255. for v in (68,59,65)]
+		#self.c2_colour = [v/255. for v in (137,90,108)]
+		#self.c2_transparency = 0.8
+		#self.ball_colour = [v/255. for v in (137,90,108)]
 
-		self.dt = 1./30 # frame rate
+		self.bg_colour = [v/255. for v in (255, 76, 30)]
+		self.c1_colour = [v/255. for v in (255, 255, 255)]
+		self.c2_colour = [v/255. for v in (255, 255, 255)]
+		self.c2_transparency = 0.8
+		self.ball_colour = [v/255. for v in (255, 255, 255)]
 
+		self.label_colour = blend(self.ball_colour, [1, 1, 1], 0.0)#0.75)
+
+		self.dt = 1./60 # frame rate
+
+		self.speed_of_time = 1. # only use for testing!
 		self.last_update_time = time.time()
 
 		self.frame = 0.
@@ -62,10 +78,10 @@ class EmotiveCircle(Frame):
 		self.last_breath_out_time = time.time()
 		self.last_breath_operation = "in"
 
-		self.C1 = Circle(parent=self, colour = [1, 1, 1], radius = 100, width = 10, has_shadow=True)
-		self.C2 = Circle(parent=self, colour = blend([1, 1, 1], self.bg_colour, 0.8), radius = 100, width = 24, has_shadow=False)
+		self.C1 = Circle(parent=self, colour = self.c1_colour, radius = 100, width = 10, has_shadow=True)
+		self.C2 = Circle(parent=self, colour = blend(self.c2_colour, self.bg_colour, self.c2_transparency), radius = 100, width = 24, has_shadow=False)
 
-		self.ball = Ball(parent=self, colour=[1,1,1], radius = 10.)
+		self.ball = Ball(parent=self, colour=self.ball_colour, radius = 10.)
 
 		self.clickBall = ClickBall(parent=self)
 
@@ -85,7 +101,7 @@ class EmotiveCircle(Frame):
 
 		self.loadState()
 
-		self.showLabel = False
+		self.showLabel = True
 
 		self.draw(init=True)
 
@@ -100,8 +116,8 @@ class EmotiveCircle(Frame):
 		self._intro_sound = mixer.Sound(self.dir+"sounds/intro_sound.wav")
 		self._save_sound = mixer.Sound(self.dir+"sounds/save_sound.wav")
 		self._heartbeat_sound = mixer.Sound(self.dir+"sounds/heartbeat_sound.wav")
-		self._breath_in_sound = mixer.Sound(self.dir+"sounds/breath_in_sound_2.wav")
-		self._breath_out_sound = mixer.Sound(self.dir+"sounds/breath_out_sound_2.wav")
+		self._breath_in_sound = mixer.Sound(self.dir+"sounds/breath_in_sound_3.wav")
+		self._breath_out_sound = mixer.Sound(self.dir+"sounds/breath_out_sound_3.wav")
 		self._chime_sound = mixer.Sound(self.dir+"sounds/chime_sound.wav")
 
 	def loadState(self):
@@ -173,7 +189,7 @@ class EmotiveCircle(Frame):
 
 			self.fadingLabel.draw(init=True)
 
-			self.label = self.canvas.create_text(10, 10, text="", anchor='nw', fill=toHex(self.label_colour))
+			self.label = self.canvas.create_text(10, 10, text="", anchor='nw', fill=toHex(self.label_colour), font=("Courier", 10, "bold"))
 
 			self.root.bind("<Configure>", self.resize)
 
@@ -210,7 +226,9 @@ class EmotiveCircle(Frame):
 	def left_click(self, event=[]):
 		# left click for feeding
 		# * need to click inside to feed
+		feeding = False
 		if self.C1.isInside((event.x, event.y)):
+			feeding = True
 			self.vitals.feed()
 
 		# if clicking at left edge of screen, pop up/hide label
@@ -218,7 +236,8 @@ class EmotiveCircle(Frame):
 			self.showLabel = not self.showLabel
 
 		# make clicking animation?
-		self.clickBall.clickAt((event.x, event.y))
+		colour = [0,0,0] if feeding else [1, 1, 1]
+		self.clickBall.clickAt((event.x, event.y), colour=colour)
 
 		return
 
@@ -273,7 +292,7 @@ class EmotiveCircle(Frame):
 
 		elif closestSide == "left" or closestSide == "right":
 			# print("annoy")
-			self.vitals.annoy()
+			self.vitals.poke()
 		#else:
 			# print("center enter!")
 
@@ -283,7 +302,7 @@ class EmotiveCircle(Frame):
 
 		# hungry, bored, ignored
 
-		amplitude = interpolate(0., 1., self.vitals.getDiscomfort())
+		amplitude = interpolate(0., 1., self.vitals.getJaggedness())
 
 		if self.frame%(2*int(1./self.dt)) == 0:
 
@@ -292,8 +311,8 @@ class EmotiveCircle(Frame):
 			# slowly rotate
 			#self.C1.goalNoise = self.C1.goalNoise[1:]+self.C1.goalNoise[:1]
 
-			for _ in range(2):
-				self.C1.goalNoise[random.randint(0, n-1)] = 1. + random.choice([1, -0.5])*amplitude
+			#for _ in range(2):
+			self.C1.goalNoise[random.randint(0, n-1)] = 1. + random.choice([1, -0.5])*amplitude
 
 
 			
@@ -316,22 +335,26 @@ class EmotiveCircle(Frame):
 		pi = math.pi
 
 		
-		E = self.vitals.getEnergyLevel() # increases amplitude of heart beat and breathing, but not rate
+		blood_pressure = self.vitals.getBloodPressure() # increases amplitude of heart beat and breathing, but not rate
 
 		HR = self.vitals.getHeartRate()
-		Hf = math.cos(self.hrx + self.dt*pi*HR/60.)**2**2**2 - (math.cos(self.hrx + self.dt*pi*HR/60.)**4)/2
+		Hf = math.cos(self.hrx + self.dt*pi*HR/60.)**2**2**2 - (math.cos(self.hrx + self.dt*pi*HR/60.)**4)/1.5
 		# now need to scale from 0 to 1
-		Hf = (Hf+0.2)*1.4
-		heart_mult = interpolate(0.9-E*0.15, 1.1+E*0.15, Hf)
+		Hf = (Hf+0.3)*1.6
+		#heart_mult = interpolate(0.9-E*0.15, 1.1+E*0.15, Hf)
+		heart_mult = interpolate(1.-blood_pressure*0.2, 1.+blood_pressure*0.2, Hf)
 		if Hf >= 0.8:
 			self.thump()
 
+
+		resp_depth = self.vitals.getRespiratoryDepth()
 
 		RR = self.vitals.getRespiratoryRate()
 		Rf = math.cos(self.rrx + 2.*self.dt*pi*RR/60.)
 		# now need to scale from 0 to 1
 		Rf = (Rf+1.0)*0.5
-		respiratory_mult = interpolate(0.95-E*0.05, 1.05+E*0.05, Rf)
+		#respiratory_mult = interpolate(0.95-E*0.05, 1.05+E*0.05, Rf)
+		respiratory_mult = interpolate(1.-resp_depth*0.1, 1.+resp_depth*0.1, Rf)
 		if Rf <= 0.2:
 			self.breathe("in")
 		if Rf >= 0.8:
@@ -343,8 +366,8 @@ class EmotiveCircle(Frame):
 		self.C2.width_mult = heart_mult
 
 		# more full -> larger, more angry -> larger
-		m = min(interpolate(0.5, 1.5, self.vitals.emotion_levels['fullness']) * interpolateN([1., 1.5], [0.5, 1.], self.vitals.getAnger()), 1.5)
-	
+		#m = min(interpolate(0.5, 1.5, self.vitals.emotion_levels['fullness']) * interpolateN([1., 1.5], [0.5, 1.], self.vitals.getAnger()), 1.5)
+		m = interpolate(0.5, 1.5, self.vitals.getSize())
 
 		self.C2.radius_mult = respiratory_mult* m
 		self.C1.radius_mult = respiratory_mult* m
@@ -361,7 +384,7 @@ class EmotiveCircle(Frame):
 		self.last_thump_time = time.time()
 
 		#print("THUMP")
-		self._heartbeat_sound.set_volume(self.vitals.getEnergyLevel())
+		self._heartbeat_sound.set_volume(self.vitals.getBloodPressure())
 		mixer.Sound.play(self._heartbeat_sound)
 		mixer.music.stop()
 
@@ -369,6 +392,7 @@ class EmotiveCircle(Frame):
 
 	def breathe(self, direction):
 
+		
 		# 60 bpm = 1 beats/s
 		if direction == "in":
 			#if time.time() - self.last_breath_in_time <= 60./60. or self.last_breath_operation == "out":
@@ -379,7 +403,7 @@ class EmotiveCircle(Frame):
 			self.last_breath_in_time = time.time()
 
 			#print("BREATH IN")
-			self._breath_in_sound.set_volume(0.5*self.vitals.getEnergyLevel())
+			self._breath_in_sound.set_volume(0.5*self.vitals.getRespiratoryDepth())
 			mixer.Sound.play(self._breath_in_sound)
 			mixer.music.stop()
 		else:
@@ -393,10 +417,10 @@ class EmotiveCircle(Frame):
 			self.last_breath_out_time = time.time()
 
 			#print("BREATH OUT")
-			self._breath_out_sound.set_volume(0.5*self.vitals.getEnergyLevel())
+			self._breath_out_sound.set_volume(0.5*self.vitals.getRespiratoryDepth())
 			mixer.Sound.play(self._breath_out_sound)
 			mixer.music.stop()
-
+		
 
 
 		return
@@ -407,14 +431,6 @@ class EmotiveCircle(Frame):
 		mixer.music.stop()
 
 	def controlBall(self):
-
-		#return
-
-		# wants to play with ball if... boredom high?
-		# ['fullness', 'affection', 'excitement', 'arousal'], anger, boredom
-
-		# also need to figure out if user interested in playing
-		# - if they hover over the ball?
 
 		def getScore():
 
@@ -428,54 +444,48 @@ class EmotiveCircle(Frame):
 
 		action_time = 0.5
 
-		if self.vitals.getBoredom() >= 0.15 or self.learner.need_reward or (self.playing_game and self.vitals.getBoredom() >= 0.05): #0.05):
+		if self.vitals.wantsToStartPlaying() or self.learner.need_reward or (self.playing_game and self.vitals.wantsToKeepPlaying()):
+			#print(self.vitals.wantsToStartPlaying(), self.learner.need_reward, (self.playing_game and self.vitals.wantsToKeepPlaying()))
 			self.playing_game = True
+			self.vitals.setExertionLevel(0.25)
 
 			curTime = time.time()
 			if curTime - self.ball.last_hit_time >= action_time + self.wait_to_act: # hit at max rate
 				self.wait_to_act = 0.
 
 				if self.learner.need_reward and self.action_stack == []:
-					
-					r = getScore()#self.ball.getLocation())
-					#print("reward:", r)
+
+					r = getScore()
+
 					isBest = self.learner.applyReward(r)
 
 					if isBest:
 						self.vitals.practiceReward()
 						self.chime()
 
-					#print("REWARDING", r)
 					self.wait_to_act = 1.
-					#print("WAITING")
-					#self.action_stack = self.learner.getNextGuess()
 
-					#self.ball.reset_position()
-					#print("new action:", self.action_stack)
-				
 				elif not self.learner.need_reward and self.action_stack == []:
+
 					#print("RESTARTING")
 					self.ball.reset_position()
-				
-					#print("starting out?")
+
 					self.action_stack = self.learner.getNextGuess()
-					self.vitals.playingGame()
+
+					#self.vitals.exercise(intensity=0.25)
 
 					self.action_start_time = time.time()
 
 				else:
-					
 
 					force, duration = self.action_stack.pop()
-					#print("ACT")
+					#print(force, duration)
 					self.ball.applyForce(force, duration)
 
-					#if len(self.action_stack) == 0:
-					#	print("\tlast action")
-						#self.wait_to_act = action_time
 
 		else:
 			self.playing_game = False
+			self.vitals.setExertionLevel(0.0)
 
 	def getCenter(self):
 
@@ -488,9 +498,9 @@ class EmotiveCircle(Frame):
 		# anger : --
 		# boredom : ** (try use just this)
 
-		height = interpolate(0.6, 0.25, self.vitals.getBoredom()) # 
+		height = interpolate(0.25, 0.6, self.vitals.getElevation()) # 
 
-		return (0.5, 1.-height)
+		return (0.5, height) # in physics form
 
 	def updateLabel(self):
 
@@ -523,7 +533,7 @@ class EmotiveCircle(Frame):
 
 		self.frame += 1.
 
-		self.after(int(self.dt*1000), self.step)
+		self.after(int(self.dt*1000/self.speed_of_time), self.step)
 
 	def run(self):
 

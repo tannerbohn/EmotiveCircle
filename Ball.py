@@ -4,6 +4,7 @@ import math
 import copy
 import time
 from common import *
+from pprint import *
 
 # todo: make all of the y calculation with physics format
 
@@ -16,21 +17,21 @@ class Ball:
 		self.radius = radius
 
 		self.shadow_colour = blend([0,0,0], self.parent.bg_colour, 0.80)
-		self.shadow_height = 15 #25 # height of the shadow in pixels
-		self.shadow_pix_from_bottom = 20 # pixels away from bottom of screen
+		self.shadow_height = self.radius #25 # height of the shadow in pixels
+		self.shadow_pix_from_bottom = 40 #20 # pixels away from bottom of screen
 
-		self.center = (0.5, 0.75)
+		
 
 		self.g = 9.8/10 # fraction of earth gravity
 		self.mass = 1. # in kg
 		self.velocity = (0., 0)#9.8/4)
 
 		#self.goalCenter = (0.5, 0.5)
-
-		self.maxYFrac = 1. # the defines how far down the floor is
+		self.center = (0.5, 0.75)
+		self.maxYFrac = 1. # the defines how far down the floor is -- calculated in resize()
 
 		# keep track of the path of the ball (only use fixed length history)
-		self.hist_len = 60
+		self.hist_len = 600
 		self.path = []
 
 		self.index = None
@@ -70,7 +71,9 @@ class Ball:
 		#window_width=self.parent.root.winfo_width()
 		window_height=self.parent.root.winfo_height()
 
-		self.maxYFrac = 1.-30./window_height
+		#self.maxYFrac = 1.-1.*(self.shadow_pix_from_bottom+self.shadow_height*0.5)/window_height
+
+		self.maxYFrac = 1. - 1.*(self.shadow_pix_from_bottom+1.2*self.radius)/window_height
 
 		self.draw()
 
@@ -85,6 +88,7 @@ class Ball:
 	def cursor_enter(self, event=[]):
 
 		self.applyForce((random.random()-0.5, 0.5), 1.)
+		self.parent.playing_game = not self.parent.playing_game
 
 	def getPoints(self, smooth=False):
 
@@ -107,7 +111,7 @@ class Ball:
 
 			hitCeiling = self.center[1] <= 0
 			if hitCeiling:
-				self.velocity = (self.velocity[0], 0)#self.velocity[1])
+				self.velocity = (self.velocity[0]*0.75, -self.velocity[1]*0.75)#self.velocity[1])
 
 			hitFloor = self.center[1] >= self.maxYFrac
 			#print("hit floor")
@@ -115,10 +119,12 @@ class Ball:
 			hitWall = self.center[0] <= 0 or self.center[0] >= 1
 
 			if hitWall:
-				self.velocity = (-self.velocity[0], self.velocity[1])
+				self.velocity = (-self.velocity[0]*0.75, self.velocity[1]*0.75)
 
 			if hitFloor:
-				self.velocity = (0, 0)
+				self.velocity = (self.velocity[0]*0.75, -self.velocity[1]*0.75)
+				if abs(self.velocity[1]) <= 0.1:
+					self.velocity = (self.velocity[0], 0.)
 			else:
 				self.velocity = (self.velocity[0], self.velocity[1] - self.g*self.parent.dt)
 			
@@ -159,12 +165,16 @@ class Ball:
 
 	def applyForce(self, force, duration):
 
-		self.last_hit_time = time.time()
+		
 
 		# force: force vector (newtons in each direction) (kg*m/s^2)
 		# duration: duration force is applied (seconds)
 		# F = m*a
 		# a = F/m
+
+		#print(force, duration, time.time() - self.last_hit_time)
+
+		self.last_hit_time = time.time()
 
 		a_x = force[0]/self.mass
 		a_y = force[1]/self.mass
@@ -186,6 +196,7 @@ class Ball:
 	def reset_position(self):
 
 		self.center = (0.5, 1)
+		self.velocity = (0.0, 0)
 
 	def getPathAverage(self, startTime):
 
@@ -207,7 +218,7 @@ class Ball:
 
 
 		if len(points) == 1:
-			points = [points[0], points[0]]
+			points = [[points[0][0]-0.01, points[0][1]-0.01], [points[0][0]+0.01, points[0][1]+0.01]]
 		
 
 		valid_hist_pts = []
@@ -230,13 +241,102 @@ class Ball:
 			newPt = interpolateNVec(points, centers, f)
 			newPoints.append(newPt)
 
+		#pprint(newPoints)
+
 
 		# now get average pointwise difference
 		assert(len(valid_hist_pts) == len(newPoints))
 
+		# want to normalize arc length of each sequence
+		'''
+		hist_dist_sum = 0.
+		for i in range(len(valid_hist_pts)-1):
+			p1 = valid_hist_pts[i]
+			p2 = valid_hist_pts[i+1]
+			hist_dist_sum += dist(p1, p2)
+		valid_hist_pts = [[1.*v[0]/hist_dist_sum, 1.*v[1]/hist_dist_sum] for v in valid_hist_pts]
+
+		newPoints_dist_sum = 0.
+		for i in range(len(newPoints)-1):
+			p1 = newPoints[i]
+			p2 = newPoints[i+1]
+			newPoints_dist_sum += dist(p1, p2)
+		#if newPoints_dist_sum == 0.:
+		#	return float('inf')
+		newPoints = [[1.*v[0]/newPoints_dist_sum, 1.*v[1]/newPoints_dist_sum] for v in newPoints]
+		'''
+		# calculate arc length of each sequence
+		hist_dist = 0.
+		for i in range(len(valid_hist_pts)-1):
+			p1 = valid_hist_pts[i]
+			p2 = valid_hist_pts[i+1]
+			hist_dist += dist(p1, p2)
+
+		newpts_dist = 0.
+		for i in range(len(newPoints)-1):
+			p1 = newPoints[i]
+			p2 = newPoints[i+1]
+			newpts_dist += dist(p1, p2)
+
+
+		# now want to points on path that are spaced equally along arc length
+		NPTS = 30
+		distSum = 0.
+		valid_hist_pts_eql = [valid_hist_pts[0]]
+		for i in range(1, len(valid_hist_pts)):
+			p1 = valid_hist_pts[i-1]
+			p2 = valid_hist_pts[i]
+			distSum += dist(p1, p2) 
+			if distSum >= hist_dist/NPTS:
+				distSum = 0.
+				valid_hist_pts_eql.append(p2)
+				#print(len(new_points))
+
+		distSum = 0.
+		newPoints_eql = [newPoints[0]]
+		for i in range(1, len(newPoints)):
+			p1 = newPoints[i-1]
+			p2 = newPoints[i]
+			distSum += dist(p1, p2) 
+			if distSum >= newpts_dist/NPTS:
+				distSum = 0.
+				newPoints_eql.append(p2)
+
+		minDist = min(len(valid_hist_pts_eql), len(newPoints_eql))
+		valid_hist_pts_eql = valid_hist_pts_eql[:minDist]
+		newPoints_eql = newPoints_eql[:minDist]
+
+		#pprint(valid_hist_pts_eql)
+		#pprint(newPoints_eql)
+
+
+		'''
+
+		# instead of using the raw locations, use the derivatives
+		valid_hist_pts_d = []
+		for i in range(len(valid_hist_pts)-1):
+			p1 = valid_hist_pts[i]
+			p2 = valid_hist_pts[i+1]
+			dx = p2[0]-p1[0]
+			dy = p2[1]-p1[1]
+			valid_hist_pts_d.append([dx, dy])
+
+		newPoints_d = []
+		for i in range(len(newPoints)-1):
+			p1 = newPoints[i]
+			p2 = newPoints[i+1]
+			dx = p2[0]-p1[0]
+			dy = p2[1]-p1[1]
+			newPoints_d.append([dx, dy])
+
+		#pprint(valid_hist_pts_d)
+		#pprint(newPoints_d)
+
+		'''
+
 		diffSum = 0.
-		for a, b in zip(valid_hist_pts, newPoints):
-			diff = abs(a[0]-b[0]) + abs(a[1] - b[1])
+		for a, b in zip(valid_hist_pts_eql, newPoints_eql):
+			diff = abs(a[0]-b[0])**2 + abs(a[1] - b[1])**2
 			diffSum += diff
 
-		return 1.*diffSum/n
+		return 1.*diffSum#/n
